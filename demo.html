@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ComfyPrompt Batch Extractor</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- React via CDN -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+
+  <style>
+    /* ─── RESET & BASE ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep:    #0b0c10;
+      --bg-surface: #12141a;
+      --bg-card:    #181b23;
+      --bg-hover:   #1f222d;
+      --bg-input:   #0e1017;
+      --border:     #2a2d3a;
+      --border-hi:  #3d4155;
+      --text-1:     #e8eaf0;
+      --text-2:     #9ea3b5;
+      --text-3:     #5e6375;
+      --accent:     #7c6aef;
+      --accent-dim: #5b4cc4;
+      --accent-bg:  rgba(124, 106, 239, 0.08);
+      --green:      #34d399;
+      --green-bg:   rgba(52, 211, 153, 0.08);
+      --amber:      #fbbf24;
+      --amber-bg:   rgba(251, 191, 36, 0.08);
+      --red:        #f87171;
+      --red-bg:     rgba(248, 113, 113, 0.08);
+      --radius:     10px;
+      --radius-sm:  6px;
+      --shadow:     0 2px 12px rgba(0,0,0,.35);
+      --font-body:  'Outfit', sans-serif;
+      --font-mono:  'JetBrains Mono', monospace;
+      --transition: 180ms ease;
+    }
+
+    html { font-size: 15px; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-deep);
+      color: var(--text-1);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── SCROLLBAR ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ─── LAYOUT SHELL ──────────────────────────────────────── */
+    #root { max-width: 1120px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    .app-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 32px; padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .app-header-icon {
+      width: 42px; height: 42px; border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      display: grid; place-items: center; flex-shrink: 0;
+      font-size: 20px; color: #fff; font-weight: 700;
+    }
+    .app-header h1 {
+      font-size: 1.55rem; font-weight: 700; letter-spacing: -.02em;
+    }
+    .app-header p { font-size: .85rem; color: var(--text-2); margin-top: 2px; }
+
+    /* ─── DROP ZONE ─────────────────────────────────────────── */
+    .dropzone {
+      position: relative; border: 2px dashed var(--border);
+      border-radius: var(--radius); padding: 48px 24px;
+      text-align: center; cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      background: var(--bg-surface);
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent); background: var(--accent-bg);
+    }
+    .dropzone-icon { font-size: 2.4rem; margin-bottom: 10px; opacity: .7; }
+    .dropzone-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; }
+    .dropzone-sub { font-size: .82rem; color: var(--text-3); }
+    .dropzone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+    }
+
+    /* ─── TOOLBAR ───────────────────────────────────────────── */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin: 20px 0 16px; padding: 12px 16px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .toolbar-count {
+      font-size: .85rem; color: var(--text-2); margin-right: auto;
+      font-weight: 500;
+    }
+    .toolbar-count strong { color: var(--text-1); }
+
+    /* ─── BUTTONS ───────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: none; border-radius: var(--radius-sm);
+      font-family: var(--font-body); font-size: .82rem; font-weight: 600;
+      cursor: pointer; transition: all var(--transition); letter-spacing: .01em;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-dim); }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent; color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text-1); border-color: var(--border-hi); background: var(--bg-hover); }
+    .btn-danger {
+      background: transparent; color: var(--red); border: 1px solid rgba(248,113,113,.2);
+    }
+    .btn-danger:hover { background: var(--red-bg); }
+    .btn-sm { padding: 5px 10px; font-size: .78rem; }
+
+    /* ─── ENTRY LIST ────────────────────────────────────────── */
+    .entry-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .entry-card {
+      display: grid;
+      grid-template-columns: 72px 1fr auto;
+      gap: 16px; align-items: start;
+      padding: 14px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color var(--transition);
+    }
+    .entry-card:hover { border-color: var(--border-hi); }
+
+    .entry-thumb {
+      width: 72px; height: 72px; border-radius: var(--radius-sm);
+      object-fit: cover; background: var(--bg-deep);
+      border: 1px solid var(--border);
+    }
+
+    .entry-body { min-width: 0; }
+    .entry-filename {
+      font-family: var(--font-mono); font-size: .82rem; font-weight: 500;
+      color: var(--text-1); margin-bottom: 6px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .entry-prompt-preview {
+      font-size: .8rem; color: var(--text-2); line-height: 1.5;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+      overflow: hidden; word-break: break-word;
+      background: var(--bg-input); padding: 8px 10px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      max-height: 80px;
+    }
+    .entry-prompt-preview.expanded {
+      -webkit-line-clamp: unset; max-height: none;
+    }
+
+    .entry-controls {
+      display: flex; flex-direction: column; gap: 6px;
+      align-items: flex-end; flex-shrink: 0;
+    }
+    .offset-control {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .offset-label {
+      font-size: .72rem; color: var(--text-3); text-transform: uppercase;
+      letter-spacing: .06em; font-weight: 600;
+    }
+    .offset-btn {
+      width: 26px; height: 26px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg-surface);
+      color: var(--text-2); font-size: .85rem; cursor: pointer;
+      display: grid; place-items: center;
+      transition: all var(--transition);
+    }
+    .offset-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+    .offset-btn:disabled { opacity: .25; cursor: not-allowed; }
+    .offset-value {
+      font-family: var(--font-mono); font-size: .82rem; font-weight: 600;
+      min-width: 32px; text-align: center; color: var(--accent);
+    }
+    .string-count {
+      font-size: .7rem; color: var(--text-3); text-align: right;
+    }
+
+    /* ─── STATUS BADGES ─────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 99px; font-size: .7rem;
+      font-weight: 600; letter-spacing: .02em;
+    }
+    .badge-ok { background: var(--green-bg); color: var(--green); }
+    .badge-warn { background: var(--amber-bg); color: var(--amber); }
+    .badge-err { background: var(--red-bg); color: var(--red); }
+
+    /* ─── TOAST ──────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 999; pointer-events: none;
+    }
+    .toast {
+      padding: 10px 16px; border-radius: var(--radius-sm);
+      font-size: .82rem; font-weight: 500;
+      box-shadow: var(--shadow); pointer-events: auto;
+      animation: toast-in .25s ease;
+    }
+    .toast-success { background: #1a3a2a; color: var(--green); border: 1px solid rgba(52,211,153,.2); }
+    .toast-error { background: #3a1a1a; color: var(--red); border: 1px solid rgba(248,113,113,.2); }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } }
+
+    /* ─── PROGRESS BAR ──────────────────────────────────────── */
+    .progress-bar-wrap {
+      height: 4px; background: var(--border); border-radius: 2px;
+      overflow: hidden; margin: 8px 0;
+    }
+    .progress-bar-fill {
+      height: 100%; background: var(--accent); border-radius: 2px;
+      transition: width .3s ease;
+    }
+
+    /* ─── EMPTY STATE ───────────────────────────────────────── */
+    .empty-state {
+      text-align: center; padding: 56px 24px; color: var(--text-3);
+    }
+    .empty-state-icon { font-size: 2.8rem; margin-bottom: 12px; opacity: .5; }
+    .empty-state p { font-size: .88rem; }
+
+    /* ─── MODAL ──────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      display: grid; place-items: center; z-index: 900;
+      animation: fade-in .15s ease;
+    }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      width: 90%; max-width: 520px; box-shadow: var(--shadow);
+    }
+    .modal h3 { font-size: 1.1rem; margin-bottom: 8px; }
+    .modal p { font-size: .85rem; color: var(--text-2); margin-bottom: 16px; line-height: 1.55; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    @keyframes fade-in { from { opacity: 0; } }
+
+    /* ─── RESPONSIVE ────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .entry-card { grid-template-columns: 56px 1fr; }
+      .entry-controls { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ════════════════════════════════════════════════════════════
+    //  IndexedDB Helper
+    // ════════════════════════════════════════════════════════════
+    const DB_NAME = 'ComfyPromptExtractorDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'entries';
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbGetAll() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbPut(entry) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.put(entry);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbDelete(id) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbClear() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  PNG Metadata Extraction Engine
+    // ════════════════════════════════════════════════════════════
+    function parsePngChunks(buffer) {
+      const view = new DataView(buffer);
+      const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+      for (let i = 0; i < 8; i++) {
+        if (view.getUint8(i) !== sig[i]) throw new Error('Not a valid PNG file');
+      }
+      const chunks = [];
+      let pos = 8;
+      while (pos < buffer.byteLength) {
+        const length = view.getUint32(pos, false);
+        const typeBytes = new Uint8Array(buffer, pos + 4, 4);
+        const type = String.fromCharCode(...typeBytes);
+        const data = new Uint8Array(buffer, pos + 8, length);
+        chunks.push({ type, data, length });
+        pos += 12 + length;
+        if (type === 'IEND') break;
+      }
+      return chunks;
+    }
+
+    function extractTextChunks(chunks) {
+      const textData = {};
+      for (const chunk of chunks) {
+        if (chunk.type === 'tEXt') {
+          const nullPos = chunk.data.indexOf(0);
+          if (nullPos !== -1) {
+            const keyword = new TextDecoder('latin1').decode(chunk.data.slice(0, nullPos));
+            const text = new TextDecoder('utf-8').decode(chunk.data.slice(nullPos + 1));
+            textData[keyword] = text;
+          }
+        } else if (chunk.type === 'iTXt') {
+          const data = chunk.data;
+          let p = 0;
+          const nullPos = data.indexOf(0, p);
+          if (nullPos === -1) continue;
+          const keyword = new TextDecoder('latin1').decode(data.slice(p, nullPos));
+          p = nullPos + 1;
+          const compressionFlag = data[p];
+          p += 2;
+          const langEnd = data.indexOf(0, p);
+          if (langEnd === -1) continue;
+          p = langEnd + 1;
+          const transEnd = data.indexOf(0, p);
+          if (transEnd === -1) continue;
+          p = transEnd + 1;
+          const text = new TextDecoder('utf-8').decode(data.slice(p));
+          textData[keyword] = text;
+        }
+      }
+      return textData;
+    }
+
+    function findAllStrings(obj, strings = []) {
+      if (typeof obj === 'string' && obj.trim().length > 0) {
+        strings.push(obj);
+      } else if (Array.isArray(obj)) {
+        for (const item of obj) findAllStrings(item, strings);
+      } else if (obj && typeof obj === 'object') {
+        for (const value of Object.values(obj)) findAllStrings(value, strings);
+      }
+      return strings;
+    }
+
+    /**
+     * Extract ALL strings from metadata, sorted by length descending.
+     * The "offset" is the index into this sorted array.
+     * Offset 0 = longest string (usually the positive prompt).
+     */
+    function extractSortedStrings(textChunks) {
+      let allStrings = [];
+      for (const [, value] of Object.entries(textChunks)) {
+        try {
+          const parsed = JSON.parse(value);
+          allStrings = allStrings.concat(findAllStrings(parsed));
+        } catch {
+          if (value.trim().length > 0) allStrings.push(value);
+        }
+      }
+      // Deduplicate, then sort by length descending
+      const unique = [...new Set(allStrings)];
+      unique.sort((a, b) => b.length - a.length);
+      return unique;
+    }
+
+    async function processImageFile(file) {
+      const buffer = await file.arrayBuffer();
+      const view = new DataView(buffer);
+      const isPng = view.getUint8(0) === 137 && view.getUint8(1) === 80 &&
+                    view.getUint8(2) === 78 && view.getUint8(3) === 71;
+      if (!isPng) throw new Error('Not a PNG file – ComfyUI metadata requires PNG format.');
+
+      const chunks = parsePngChunks(buffer);
+      const textChunks = extractTextChunks(chunks);
+      if (Object.keys(textChunks).length === 0) {
+        throw new Error('No metadata found in PNG.');
+      }
+      const strings = extractSortedStrings(textChunks);
+      if (strings.length === 0) throw new Error('No text strings found in metadata.');
+      return strings;
+    }
+
+    // Create a smaller thumbnail blob from a File for IndexedDB storage
+    async function createThumbnailBlob(file, maxDim = 128) {
+      return new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            URL.revokeObjectURL(url);
+            resolve(blob);
+          }, 'image/jpeg', 0.7);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+      });
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  Toast System
+    // ════════════════════════════════════════════════════════════
+    function ToastContainer({ toasts }) {
+      return (
+        <div className="toast-container">
+          {toasts.map(t => (
+            <div key={t.id} className={`toast toast-${t.type}`}>{t.message}</div>
+          ))}
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  Entry Card Component
+    // ════════════════════════════════════════════════════════════
+    function EntryCard({ entry, onOffsetChange, onRemove }) {
+      const [expanded, setExpanded] = React.useState(false);
+      const [thumbUrl, setThumbUrl] = React.useState(null);
+
+      React.useEffect(() => {
+        if (entry.thumbBlob) {
+          const url = URL.createObjectURL(entry.thumbBlob);
+          setThumbUrl(url);
+          return () => URL.revokeObjectURL(url);
+        }
+      }, [entry.thumbBlob]);
+
+      const currentPrompt = entry.strings[entry.offset] || '(no string at this offset)';
+      const total = entry.strings.length;
+
+      return (
+        <div className="entry-card">
+          {thumbUrl ? (
+            <img className="entry-thumb" src={thumbUrl} alt="" />
+          ) : (
+            <div className="entry-thumb" style={{ display: 'grid', placeItems: 'center', fontSize: '.7rem', color: 'var(--text-3)' }}>IMG</div>
+          )}
+
+          <div className="entry-body">
+            <div className="entry-filename" title={entry.fileName}>{entry.fileName}.txt</div>
+            <div
+              className={`entry-prompt-preview${expanded ? ' expanded' : ''}`}
+              onClick={() => setExpanded(e => !e)}
+              title="Click to expand/collapse"
+              style={{ cursor: 'pointer' }}
+            >
+              {currentPrompt}
+            </div>
+            {entry.error && <span className="badge badge-err" style={{ marginTop: 6 }}>{entry.error}</span>}
+          </div>
+
+          <div className="entry-controls">
+            <div className="offset-control">
+              <span className="offset-label">Offset</span>
+              <button className="offset-btn" disabled={entry.offset <= 0}
+                onClick={() => onOffsetChange(entry.id, entry.offset - 1)}>−</button>
+              <span className="offset-value">{entry.offset}</span>
+              <button className="offset-btn" disabled={entry.offset >= total - 1}
+                onClick={() => onOffsetChange(entry.id, entry.offset + 1)}>+</button>
+            </div>
+            <div className="string-count">{total} string{total !== 1 ? 's' : ''} found</div>
+            <button className="btn btn-danger btn-sm" onClick={() => onRemove(entry.id)}>Remove</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════
+    //  Main App
+    // ════════════════════════════════════════════════════════════
+    function App() {
+      const [entries, setEntries] = React.useState([]);
+      const [loading, setLoading] = React.useState(true);
+      const [processing, setProcessing] = React.useState(false);
+      const [progress, setProgress] = React.useState({ done: 0, total: 0 });
+      const [dragOver, setDragOver] = React.useState(false);
+      const [toasts, setToasts] = React.useState([]);
+      const [confirmClear, setConfirmClear] = React.useState(false);
+      const fileRef = React.useRef(null);
+
+      const toast = (message, type = 'success') => {
+        const id = Date.now() + Math.random();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+      };
+
+      // Load from IndexedDB on mount
+      React.useEffect(() => {
+        dbGetAll().then(rows => {
+          setEntries(rows.sort((a, b) => a.addedAt - b.addedAt));
+        }).catch(err => {
+          console.error('DB load failed:', err);
+          toast('Failed to load saved entries.', 'error');
+        }).finally(() => setLoading(false));
+      }, []);
+
+      // Process uploaded files
+      const handleFiles = async (files) => {
+        const pngFiles = Array.from(files).filter(f =>
+          f.type === 'image/png' || f.name.toLowerCase().endsWith('.png')
+        );
+        if (pngFiles.length === 0) {
+          toast('No PNG files found in selection.', 'error');
+          return;
+        }
+
+        setProcessing(true);
+        setProgress({ done: 0, total: pngFiles.length });
+        let added = 0;
+        let errors = 0;
+
+        for (let i = 0; i < pngFiles.length; i++) {
+          const file = pngFiles[i];
+          const id = `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`;
+          const fileName = file.name.replace(/\.[^/.]+$/, '');
+
+          try {
+            const strings = await processImageFile(file);
+            const thumbBlob = await createThumbnailBlob(file);
+            const entry = {
+              id,
+              fileName,
+              strings,
+              offset: 0,
+              thumbBlob,
+              addedAt: Date.now(),
+              error: null,
+            };
+            await dbPut(entry);
+            setEntries(prev => [...prev, entry]);
+            added++;
+          } catch (err) {
+            const entry = {
+              id,
+              fileName,
+              strings: ['(extraction failed)'],
+              offset: 0,
+              thumbBlob: await createThumbnailBlob(file),
+              addedAt: Date.now(),
+              error: err.message,
+            };
+            await dbPut(entry);
+            setEntries(prev => [...prev, entry]);
+            errors++;
+          }
+
+          setProgress({ done: i + 1, total: pngFiles.length });
+        }
+
+        setProcessing(false);
+        if (errors > 0) {
+          toast(`Processed ${added} image${added !== 1 ? 's' : ''}, ${errors} error${errors !== 1 ? 's' : ''}.`, 'error');
+        } else {
+          toast(`Added ${added} image${added !== 1 ? 's' : ''}.`);
+        }
+      };
+
+      const onFileChange = (e) => {
+        if (e.target.files?.length) handleFiles(e.target.files);
+        e.target.value = '';
+      };
+
+      const onDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
+      };
+
+      const changeOffset = async (id, newOffset) => {
+        setEntries(prev => prev.map(e => {
+          if (e.id !== id) return e;
+          const updated = { ...e, offset: newOffset };
+          dbPut(updated).catch(console.error);
+          return updated;
+        }));
+      };
+
+      const removeEntry = async (id) => {
+        await dbDelete(id);
+        setEntries(prev => prev.filter(e => e.id !== id));
+      };
+
+      const clearAll = async () => {
+        await dbClear();
+        setEntries([]);
+        setConfirmClear(false);
+        toast('All entries cleared.');
+      };
+
+      // ── Batch Export ──
+      const exportAll = async () => {
+        const valid = entries.filter(e => !e.error);
+        if (valid.length === 0) {
+          toast('No valid entries to export.', 'error');
+          return;
+        }
+
+        // If only one entry, just download directly
+        if (valid.length === 1) {
+          const e = valid[0];
+          const text = e.strings[e.offset] || '';
+          const blob = new Blob([text], { type: 'text/plain' });
+          downloadBlob(blob, `${e.fileName}.txt`);
+          toast('Exported 1 file.');
+          return;
+        }
+
+        // Multiple: create a zip-like download using individual downloads
+        // We'll batch them with a small delay to avoid browser blocking
+        toast(`Exporting ${valid.length} files…`);
+        for (let i = 0; i < valid.length; i++) {
+          const e = valid[i];
+          const text = e.strings[e.offset] || '';
+          const blob = new Blob([text], { type: 'text/plain' });
+          downloadBlob(blob, `${e.fileName}.txt`);
+          // Small delay to prevent browser from blocking multiple downloads
+          if (i < valid.length - 1) {
+            await new Promise(r => setTimeout(r, 300));
+          }
+        }
+        toast(`Exported ${valid.length} files.`);
+      };
+
+      function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // ── Render ──
+      const validCount = entries.filter(e => !e.error).length;
+
+      return (
+        <div>
+          {/* Header */}
+          <header className="app-header">
+            <div className="app-header-icon">⚡</div>
+            <div>
+              <h1>ComfyPrompt Batch Extractor</h1>
+              <p>Extract, review & export prompts from ComfyUI PNG images</p>
+            </div>
+          </header>
+
+          {/* Drop Zone */}
+          <div
+            className={`dropzone${dragOver ? ' drag-over' : ''}`}
+            onDrop={onDrop}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onClick={() => fileRef.current?.click()}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png"
+              multiple
+              onChange={onFileChange}
+            />
+            <div className="dropzone-icon">📁</div>
+            <div className="dropzone-title">Drop PNG images here or click to browse</div>
+            <div className="dropzone-sub">Supports batch upload · ComfyUI PNGs only</div>
+          </div>
+
+          {/* Processing Progress */}
+          {processing && (
+            <div className="progress-bar-wrap" style={{ marginTop: 12 }}>
+              <div className="progress-bar-fill" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+            </div>
+          )}
+
+          {/* Toolbar */}
+          {entries.length > 0 && (
+            <div className="toolbar">
+              <span className="toolbar-count">
+                <strong>{validCount}</strong> of <strong>{entries.length}</strong> ready to export
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setConfirmClear(true)}>Clear All</button>
+              <button className="btn btn-primary btn-sm" disabled={validCount === 0} onClick={exportAll}>
+                ↓ Export All as .txt
+              </button>
+            </div>
+          )}
+
+          {/* Entry List */}
+          {loading ? (
+            <div className="empty-state"><p>Loading saved entries…</p></div>
+          ) : entries.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">🖼️</div>
+              <p>Upload ComfyUI PNG images to extract prompts</p>
+            </div>
+          ) : (
+            <div className="entry-list">
+              {entries.map(entry => (
+                <EntryCard
+                  key={entry.id}
+                  entry={entry}
+                  onOffsetChange={changeOffset}
+                  onRemove={removeEntry}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Clear Confirmation Modal */}
+          {confirmClear && (
+            <div className="modal-overlay" onClick={() => setConfirmClear(false)}>
+              <div className="modal" onClick={e => e.stopPropagation()}>
+                <h3>Clear all entries?</h3>
+                <p>This will remove all {entries.length} entries from the list and IndexedDB storage. This action cannot be undone.</p>
+                <div className="modal-actions">
+                  <button className="btn btn-ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
+                  <button className="btn btn-danger" onClick={clearAll}>Clear All</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Toasts */}
+          <ToastContainer toasts={toasts} />
+        </div>
+      );
+    }
+
+    // Mount
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
